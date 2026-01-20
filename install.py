@@ -26,10 +26,10 @@ from enum import Enum, auto
 # Configuration
 # ============================================================================
 
-INSTALL_DIR = Path.home() / ".local" / "share" / "xreal-vr-stack"
+INSTALL_DIR = Path.home() / ".local" / "share" / "VRStack"
 BIN_DIR = Path.home() / ".local" / "bin"
-CONFIG_DIR = Path.home() / ".config" / "xreal-vr-stack"
-CACHE_DIR = Path.home() / ".cache" / "xreal-vr-stack"
+CONFIG_DIR = Path.home() / ".config" / "VRStack"
+CACHE_DIR = Path.home() / ".cache" / "VRStack"
 
 class Distro(Enum):
     UBUNTU = auto()
