@@ -7,8 +7,8 @@
 set -e
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-CONFIG_DIR="$HOME/.config/xreal-vr-stack"
-CACHE_DIR="$HOME/.cache/xreal-vr-stack"
+CONFIG_DIR="$HOME/.config/VRStack"
+CACHE_DIR="$HOME/.cache/VRStack"
 
 # Colors
 RED='\033[0;31m'
