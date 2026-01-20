@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # XREAL VR Stack Quick Installer
-# Run with: curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/xreal-vr-stack/main/install.sh | bash
+# Run with: curl -sSL https://raw.githubusercontent.com/bl4ckj4ck777/VRStack/main/install.sh | bash
 #
 
 set -e
@@ -13,8 +13,8 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m'
 
-REPO_URL="https://github.com/YOUR_USERNAME/xreal-vr-stack.git"
-INSTALL_DIR="$HOME/.local/share/xreal-vr-stack"
+REPO_URL="https://github.com/bl4ckj4ck777/VRStack.git"
+INSTALL_DIR="$HOME/.local/share/VRStack"
 BIN_DIR="$HOME/.local/bin"
 
 echo -e "${CYAN}"
