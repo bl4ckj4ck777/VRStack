@@ -101,6 +101,7 @@ fi
 
 # Run the interactive installer
 echo -e "\n${GREEN}Launching component installer...${NC}\n"
+exec < /dev/tty  # Reattach stdin to terminal
 python3 install.py
 
 echo -e "\n${GREEN}Installation complete!${NC}"
