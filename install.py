@@ -336,6 +336,17 @@ class MonadoComponent(Component):
     def install(self, distro: Distro, hardware: HardwareInfo) -> bool:
         print(f"[*] Installing {self.name}...")
         
+        if distro in [Distro.UBUNTU, Distro.DEBIAN]:
+            # Try Monado PPA first
+            try:
+                run("sudo add-apt-repository -y ppa:monado-xr/monado")
+                run("sudo apt update")
+                run("sudo apt install -y libopenxr-loader1 libopenxr-dev monado")
+                return True
+            except subprocess.CalledProcessError:
+                print("    PPA failed, building from source...")
+                return self._build_from_source(distro)
+        
         # Distro-specific installation
         packages = {
             Distro.UBUNTU: ["monado", "monado-cli"],
