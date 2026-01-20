@@ -492,23 +492,45 @@ class OpenTrackComponent(Component):
     def install(self, distro: Distro, hardware: HardwareInfo) -> bool:
         print(f"[*] Installing {self.name}...")
         
-        packages = {
-            Distro.UBUNTU: ["opentrack"],
-            Distro.FEDORA: ["opentrack"],
-            Distro.ARCH: ["opentrack"],
-        }
+        if distro in [Distro.UBUNTU, Distro.DEBIAN]:
+            # Use PPA for Ubuntu/Debian
+            try:
+                run("sudo add-apt-repository -y ppa:opentrack-maintainers/opentrack")
+                run("sudo apt update")
+                run("sudo apt install -y opentrack")
+                return True
+            except subprocess.CalledProcessError:
+                print("    PPA failed, trying AppImage...")
+                return self._install_appimage()
         
-        distro_packages = packages.get(distro, [])
-        if distro_packages:
-            return install_packages(distro_packages, distro)
+        elif distro == Distro.ARCH:
+            # AUR package
+            try:
+                run("yay -S --noconfirm opentrack")
+                return True
+            except subprocess.CalledProcessError:
+                return self._install_appimage()
         
-        print("[!] OpenTrack not available in repos, please install manually")
-        return False
+        return self._install_appimage()
+    
+    def _install_appimage(self) -> bool:
+        """Download and install AppImage as fallback."""
+        try:
+            # Get latest release URL
+            appimage_url = "https://github.com/opentrack/opentrack/releases/latest/download/opentrack-linux-x86_64.AppImage"
+            dest = BIN_DIR / "opentrack"
+            BIN_DIR.mkdir(parents=True, exist_ok=True)
+            
+            run(f"curl -L -o {dest} {appimage_url}")
+            dest.chmod(0o755)
+            return True
+        except subprocess.CalledProcessError as e:
+            print(f"[!] AppImage download failed: {e}")
+            return False
     
     def uninstall(self) -> bool:
-        # Package manager handles this
+        (BIN_DIR / "opentrack").unlink(missing_ok=True)
         return True
-
 
 class StardustXRComponent(Component):
     """Stardust XR - 3D desktop environment."""
