@@ -20,14 +20,14 @@ This project bundles together the fragmented Linux XR ecosystem into a single, e
 
 ```bash
 # One-liner installation
-curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/xreal-vr-stack/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/bl4ckj4ck777/VRstack/main/install.sh | bash
 ```
 
 Or manually:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/xreal-vr-stack.git
-cd xreal-vr-stack
+git clone https://github.com/bl4ckj4ck777/VRStack.git
+cd VRStack
 python3 install.py
 ```
 
@@ -187,7 +187,7 @@ xr_driver_cli -c
 
 ## Configuration
 
-Config files are stored in `~/.config/xreal-vr-stack/`:
+Config files are stored in `~/.config/VRStack/`:
 
 - `displays.conf` - Display names and preferences
 - `tracking.conf` - Head tracking settings
