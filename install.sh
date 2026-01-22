@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# XREAL VR Stack Quick Installer
+# VRStack Quick Installer
 # Run with: curl -sSL https://raw.githubusercontent.com/bl4ckj4ck777/VRStack/main/install.sh | bash
 #
 
@@ -20,7 +20,7 @@ BIN_DIR="$HOME/.local/bin"
 echo -e "${CYAN}"
 cat << 'EOF'
 ╔══════════════════════════════════════════════════════════════╗
-║             XREAL VR Stack Quick Installer                   ║
+║             VRStack Quick Installer                          ║
 ║         Unified Linux AR/VR Component Manager                ║
 ╚══════════════════════════════════════════════════════════════╝
 EOF
@@ -59,7 +59,7 @@ if [[ $MISSING -eq 1 ]]; then
 fi
 
 # Clone or update repository
-echo -e "\n${GREEN}Setting up XREAL VR Stack...${NC}"
+echo -e "\n${GREEN}Setting up VRStack...${NC}"
 
 if [[ -d "$INSTALL_DIR" ]]; then
     echo "  Updating existing installation..."
@@ -73,7 +73,7 @@ fi
 
 # Make scripts executable
 chmod +x install.py
-chmod +x scripts/*.sh
+chmod +x scripts/*.sh 2>/dev/null || true
 
 # Create bin directory and symlinks
 mkdir -p "$BIN_DIR"
@@ -93,16 +93,24 @@ if [[ ":$PATH:" != *":$BIN_DIR:"* ]]; then
     fi
     
     if [[ -n "$SHELL_RC" ]]; then
-        echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
-        echo -e "  Added to $SHELL_RC"
-        echo -e "  ${YELLOW}Run 'source $SHELL_RC' or restart your terminal${NC}"
+        if ! grep -q 'export PATH="$HOME/.local/bin:$PATH"' "$SHELL_RC"; then
+            echo 'export PATH="$HOME/.local/bin:$PATH"' >> "$SHELL_RC"
+            echo -e "  Added to $SHELL_RC"
+            echo -e "  ${YELLOW}Run 'source $SHELL_RC' or restart your terminal${NC}"
+        fi
     fi
 fi
 
 # Run the interactive installer
 echo -e "\n${GREEN}Launching component installer...${NC}\n"
-exec < /dev/tty  # Reattach stdin to terminal
-python3 install.py
+
+# Reattach stdin to terminal for interactive input (needed for curl | bash)
+if ! exec < /dev/tty 2>/dev/null; then
+    echo -e "${YELLOW}Cannot attach to terminal. Running in non-interactive mode...${NC}"
+    python3 install.py --full
+else
+    python3 install.py
+fi
 
 echo -e "\n${GREEN}Installation complete!${NC}"
 echo -e "\nUsage:"
