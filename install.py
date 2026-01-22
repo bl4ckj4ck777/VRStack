@@ -516,14 +516,34 @@ class OpenTrackComponent(Component):
             run(f"make -j{num_cores}", cwd=str(build_dir), shell=True)
             
             # Copy binary directly instead of make install (which can fail)
-            opentrack_bin = build_dir / "opentrack"
-            if opentrack_bin.exists():
+            # The binary is at build/opentrack/opentrack (inside a subdirectory)
+            opentrack_bin = build_dir / "opentrack" / "opentrack"
+            if opentrack_bin.exists() and opentrack_bin.is_file():
                 BIN_DIR.mkdir(parents=True, exist_ok=True)
                 shutil.copy(opentrack_bin, BIN_DIR / "opentrack")
                 (BIN_DIR / "opentrack").chmod(0o755)
                 print("    Installed opentrack binary")
+                
+                # Also install support libraries from the build directory
+                lib_dir = Path.home() / ".local" / "lib" / "opentrack"
+                lib_dir.mkdir(parents=True, exist_ok=True)
+                for so_file in build_dir.glob("**/*.so"):
+                    try:
+                        shutil.copy(so_file, lib_dir / so_file.name)
+                    except Exception:
+                        pass  # Non-critical if some libs fail to copy
+                        
+                # Install data files via make install (i18n, etc.)
+                try:
+                    run("make install", cwd=str(build_dir), shell=True)
+                except subprocess.CalledProcessError:
+                    print("    Warning: make install partially failed (non-critical)")
             else:
                 print(f"[!] Binary not found at {opentrack_bin}")
+                # List what's actually in the build directory to help debug
+                print(f"    Contents of {build_dir}:")
+                for item in sorted(build_dir.iterdir())[:10]:
+                    print(f"      {item.name}")
                 return False
             return True
         except subprocess.CalledProcessError as e:
@@ -702,8 +722,10 @@ class VRto3DComponent(Component):
                 break
         
         if not steamvr_drivers:
-            print("[!] SteamVR not found. Please install SteamVR first, then re-run this installer.")
-            return False
+            print("[!] SteamVR not found. Skipping vrto3d installation.")
+            print("    Install SteamVR first if you want VR game support, then re-run:")
+            print("    python3 ~/.local/share/VRStack/install.py --components vrto3d")
+            return True  # Return True to not fail the whole installation
         
         # Install build dependencies
         deps = {
@@ -878,7 +900,7 @@ def clear_screen():
 def print_header():
     print(f"""
 {Colors.CYAN}{Colors.BOLD}╔══════════════════════════════════════════════════════════════╗
-║             VRStack Installer v0.2.0                         ║
+║             VRStack Installer v0.2.1                         ║
 ║         Unified Linux AR/VR Component Manager                ║
 ╚══════════════════════════════════════════════════════════════╝{Colors.RESET}
 """)
