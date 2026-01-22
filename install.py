@@ -453,90 +453,13 @@ class MonadoComponent(Component):
         return True
 
 
-class AITrackComponent(Component):
-    """AITrack - Neural network head tracking via webcam."""
-    
-    def __init__(self):
-        super().__init__(
-            name="aitrack",
-            description="Webcam-based head tracking using neural networks (6DOF)",
-            category="tracking",
-            dependencies=[],
-        )
-    
-    def check_installed(self) -> ComponentStatus:
-        aitrack_dir = INSTALL_DIR / "aitrack"
-        if aitrack_dir.exists() and (aitrack_dir / "AITrack").exists():
-            return ComponentStatus.INSTALLED
-        return ComponentStatus.NOT_INSTALLED
-    
-    def install(self, distro: Distro, hardware: HardwareInfo) -> bool:
-        print(f"[*] Installing {self.name}...")
-        
-        # AITrack needs to be built from source on Linux
-        deps = {
-            Distro.UBUNTU: ["libopencv-dev", "cmake", "build-essential", "qtbase5-dev"],
-            Distro.DEBIAN: ["libopencv-dev", "cmake", "build-essential", "qtbase5-dev"],
-            Distro.FEDORA: ["opencv-devel", "cmake", "gcc-c++", "qt5-qtbase-devel"],
-            Distro.ARCH: ["opencv", "cmake", "base-devel", "qt5-base"],
-        }
-        
-        distro_deps = deps.get(distro, [])
-        if distro_deps:
-            install_packages(distro_deps, distro)
-        
-        src_dir = CACHE_DIR / "aitrack"
-        CACHE_DIR.mkdir(parents=True, exist_ok=True)
-        
-        if not clone_or_update("https://github.com/AIRLegend/aitrack.git", src_dir):
-            return False
-        
-        # Build
-        client_dir = src_dir / "Client"
-        build_dir = client_dir / "build"
-        build_dir.mkdir(exist_ok=True)
-        
-        try:
-            run("cmake ..", cwd=str(build_dir), shell=True)
-            num_cores = get_num_cores()
-            run(f"make -j{num_cores}", cwd=str(build_dir), shell=True)
-            
-            # Install to our directory
-            INSTALL_DIR.mkdir(parents=True, exist_ok=True)
-            install_path = INSTALL_DIR / "aitrack"
-            install_path.mkdir(exist_ok=True)
-            
-            # Find the built executable
-            aitrack_bin = build_dir / "AITrack"
-            if aitrack_bin.exists():
-                shutil.copy(aitrack_bin, install_path / "AITrack")
-            
-            # Create launcher script
-            BIN_DIR.mkdir(parents=True, exist_ok=True)
-            launcher = BIN_DIR / "aitrack"
-            launcher.write_text(f"""#!/bin/bash
-exec "{install_path}/AITrack" "$@"
-""")
-            launcher.chmod(0o755)
-            
-            return True
-        except subprocess.CalledProcessError as e:
-            print(f"[!] Build failed: {e}")
-            return False
-    
-    def uninstall(self) -> bool:
-        shutil.rmtree(INSTALL_DIR / "aitrack", ignore_errors=True)
-        (BIN_DIR / "aitrack").unlink(missing_ok=True)
-        return True
-
-
 class OpenTrackComponent(Component):
-    """OpenTrack - Head tracking software with multiple input sources."""
+    """OpenTrack - Head tracking software (includes NeuralNet face tracker)."""
     
     def __init__(self):
         super().__init__(
             name="opentrack",
-            description="Head tracking hub (combines multiple tracking sources)",
+            description="Head tracking with webcam AI (NeuralNet tracker built-in)",
             category="tracking",
             dependencies=[],
         )
@@ -544,66 +467,57 @@ class OpenTrackComponent(Component):
     def check_installed(self) -> ComponentStatus:
         if cmd_exists("opentrack"):
             return ComponentStatus.INSTALLED
-        # Check for AppImage
-        if (BIN_DIR / "opentrack").exists():
-            return ComponentStatus.INSTALLED
         return ComponentStatus.NOT_INSTALLED
     
     def install(self, distro: Distro, hardware: HardwareInfo) -> bool:
         print(f"[*] Installing {self.name}...")
+        print("    Building from source (this may take a few minutes)...")
         
-        if distro in [Distro.UBUNTU, Distro.DEBIAN]:
-            # Try PPA first
-            try:
-                print("    Trying OpenTrack PPA...")
-                run("sudo add-apt-repository -y ppa:opentrack-maintainers/opentrack", shell=True)
-                run("sudo apt update", shell=True)
-                run("sudo apt install -y opentrack", shell=True)
-                return True
-            except subprocess.CalledProcessError:
-                print("    PPA failed, trying AppImage...")
-                return self._install_appimage()
+        # Install build dependencies
+        deps = {
+            Distro.UBUNTU: [
+                "cmake", "git", "qttools5-dev", "qtbase5-private-dev",
+                "libprocps-dev", "libopencv-dev", "libqt5x11extras5-dev",
+                "qt6-base-dev", "qt6-tools-dev", "qt6-tools-dev-tools",
+                "qt6-base-private-dev"
+            ],
+            Distro.DEBIAN: [
+                "cmake", "git", "qttools5-dev", "qtbase5-private-dev",
+                "libprocps-dev", "libopencv-dev", "libqt5x11extras5-dev",
+                "qt6-base-dev", "qt6-tools-dev", "qt6-tools-dev-tools",
+                "qt6-base-private-dev"
+            ],
+            Distro.FEDORA: [
+                "cmake", "git", "qt6-qttools-devel", "qt6-qtbase-private-devel",
+                "procps-ng-devel", "opencv-devel"
+            ],
+            Distro.ARCH: [
+                "cmake", "git", "qt6-tools", "qt6-base", "opencv", "procps-ng"
+            ],
+        }
         
-        elif distro == Distro.ARCH:
-            # AUR package
-            try:
-                if cmd_exists("yay"):
-                    run("yay -S --noconfirm opentrack", shell=True)
-                    return True
-                elif cmd_exists("paru"):
-                    run("paru -S --noconfirm opentrack", shell=True)
-                    return True
-                else:
-                    print("    No AUR helper found, trying AppImage...")
-                    return self._install_appimage()
-            except subprocess.CalledProcessError:
-                return self._install_appimage()
+        distro_deps = deps.get(distro, [])
+        if distro_deps:
+            install_packages(distro_deps, distro)
         
-        elif distro == Distro.FEDORA:
-            try:
-                run("sudo dnf install -y opentrack", shell=True)
-                return True
-            except subprocess.CalledProcessError:
-                return self._install_appimage()
+        # Clone and build
+        src_dir = CACHE_DIR / "opentrack-src"
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
         
-        return self._install_appimage()
-    
-    def _install_appimage(self) -> bool:
-        """Download and install AppImage as fallback."""
+        if not clone_or_update("https://github.com/opentrack/opentrack.git", src_dir):
+            return False
+        
+        build_dir = src_dir / "build"
+        build_dir.mkdir(exist_ok=True)
+        
         try:
-            print("    Downloading OpenTrack AppImage...")
-            BIN_DIR.mkdir(parents=True, exist_ok=True)
-            dest = BIN_DIR / "opentrack"
-            
-            # Get latest release AppImage URL
-            # Note: OpenTrack releases vary, this is a common pattern
-            run(f'curl -L -o "{dest}" "https://github.com/opentrack/opentrack/releases/latest/download/opentrack-linux-x86_64.AppImage"', shell=True)
-            dest.chmod(0o755)
-            print("    AppImage installed successfully")
+            run(f"cmake .. -DCMAKE_INSTALL_PREFIX={Path.home()}/.local", cwd=str(build_dir), shell=True)
+            num_cores = get_num_cores()
+            run(f"make -j{num_cores}", cwd=str(build_dir), shell=True)
+            run("make install", cwd=str(build_dir), shell=True)
             return True
         except subprocess.CalledProcessError as e:
-            print(f"[!] AppImage download failed: {e}")
-            print("    Please install OpenTrack manually from: https://github.com/opentrack/opentrack/releases")
+            print(f"[!] Build failed: {e}")
             return False
     
     def uninstall(self) -> bool:
@@ -658,12 +572,12 @@ class StardustXRComponent(Component):
                 print(f"[!] Failed to install Rust: {e}")
                 return False
         
-        # Install additional build dependencies
+        # Install build dependencies (including libasound2-dev for ALSA)
         deps = {
-            Distro.UBUNTU: ["libfontconfig1-dev", "libxkbcommon-dev", "pkg-config"],
-            Distro.DEBIAN: ["libfontconfig1-dev", "libxkbcommon-dev", "pkg-config"],
-            Distro.FEDORA: ["fontconfig-devel", "libxkbcommon-devel", "pkg-config"],
-            Distro.ARCH: ["fontconfig", "libxkbcommon", "pkgconf"],
+            Distro.UBUNTU: ["libfontconfig1-dev", "libxkbcommon-dev", "pkg-config", "libasound2-dev"],
+            Distro.DEBIAN: ["libfontconfig1-dev", "libxkbcommon-dev", "pkg-config", "libasound2-dev"],
+            Distro.FEDORA: ["fontconfig-devel", "libxkbcommon-devel", "pkg-config", "alsa-lib-devel"],
+            Distro.ARCH: ["fontconfig", "libxkbcommon", "pkgconf", "alsa-lib"],
         }
         
         distro_deps = deps.get(distro, [])
@@ -696,14 +610,37 @@ class StardustXRComponent(Component):
                 
                 # Find and install binary
                 target_dir = src_dir / "target" / "release"
-                for candidate in [binary_name, dir_name.replace("-", "_"), dir_name]:
+                
+                # Try multiple possible binary names
+                possible_names = [binary_name, dir_name.replace("-", "_"), dir_name, "stardust-xr-server"]
+                
+                installed = False
+                for candidate in possible_names:
                     binary_path = target_dir / candidate
-                    if binary_path.exists() and binary_path.is_file():
-                        dest_name = f"stardust-xr-{candidate}" if not candidate.startswith("stardust") else candidate
+                    if binary_path.exists() and binary_path.is_file() and os.access(binary_path, os.X_OK):
+                        # Determine destination name
+                        if candidate == "stardust-xr-server":
+                            dest_name = "stardust-xr-server"
+                        elif candidate in ["flatland", "hexagon_launcher"]:
+                            dest_name = f"stardust-xr-{candidate}"
+                        else:
+                            dest_name = candidate
+                        
                         shutil.copy(binary_path, BIN_DIR / dest_name)
                         (BIN_DIR / dest_name).chmod(0o755)
                         print(f"    Installed {dest_name}")
+                        installed = True
                         break
+                
+                if not installed:
+                    # List what's in target/release to help debug
+                    print(f"    Warning: Could not find binary for {dir_name}")
+                    print(f"    Available files in {target_dir}:")
+                    if target_dir.exists():
+                        for f in target_dir.iterdir():
+                            if f.is_file() and os.access(f, os.X_OK):
+                                print(f"      - {f.name}")
+                    
             except subprocess.CalledProcessError as e:
                 print(f"[!] Failed to build {dir_name}: {e}")
                 success = False
@@ -712,7 +649,7 @@ class StardustXRComponent(Component):
     
     def uninstall(self) -> bool:
         for binary in ["stardust-xr-server", "stardust-xr-flatland", "stardust-xr-protostar", 
-                       "flatland", "hexagon_launcher"]:
+                       "stardust-xr-hexagon_launcher", "flatland", "hexagon_launcher"]:
             (BIN_DIR / binary).unlink(missing_ok=True)
         return True
 
@@ -741,6 +678,23 @@ class VRto3DComponent(Component):
     def install(self, distro: Distro, hardware: HardwareInfo) -> bool:
         print(f"[*] Installing {self.name}...")
         
+        # Find SteamVR drivers directory
+        steamvr_locations = [
+            Path.home() / ".steam" / "steam" / "steamapps" / "common" / "SteamVR" / "drivers",
+            Path.home() / ".local" / "share" / "Steam" / "steamapps" / "common" / "SteamVR" / "drivers",
+            Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam" / "steamapps" / "common" / "SteamVR" / "drivers",
+        ]
+        
+        steamvr_drivers = None
+        for loc in steamvr_locations:
+            if loc.exists():
+                steamvr_drivers = loc
+                break
+        
+        if not steamvr_drivers:
+            print("[!] SteamVR not found. Please install SteamVR first, then re-run this installer.")
+            return False
+        
         # Install build dependencies
         deps = {
             Distro.UBUNTU: ["build-essential", "cmake"],
@@ -763,24 +717,6 @@ class VRto3DComponent(Component):
         try:
             run("cmake -B build", cwd=str(src_dir), shell=True)
             run("cmake --build build --config Release", cwd=str(src_dir), shell=True)
-            
-            # Find SteamVR drivers directory
-            steamvr_locations = [
-                Path.home() / ".steam" / "steam" / "steamapps" / "common" / "SteamVR" / "drivers",
-                Path.home() / ".local" / "share" / "Steam" / "steamapps" / "common" / "SteamVR" / "drivers",
-                Path.home() / ".var" / "app" / "com.valvesoftware.Steam" / ".steam" / "steam" / "steamapps" / "common" / "SteamVR" / "drivers",
-            ]
-            
-            steamvr_drivers = None
-            for loc in steamvr_locations:
-                if loc.exists():
-                    steamvr_drivers = loc
-                    break
-            
-            if not steamvr_drivers:
-                print("[!] SteamVR not found. Please install SteamVR first.")
-                print("    Built files are in: " + str(src_dir / "build"))
-                return False
             
             vrto3d_dest = steamvr_drivers / "vrto3d"
             if vrto3d_dest.exists():
@@ -832,7 +768,13 @@ class Depth3DComponent(Component):
         print(f"[*] Installing {self.name}...")
         
         # Install dependencies
-        deps = ["p7zip-full", "curl", "wget"] if distro in [Distro.UBUNTU, Distro.DEBIAN] else ["p7zip", "curl", "wget"]
+        deps_map = {
+            Distro.UBUNTU: ["p7zip-full", "curl", "wget"],
+            Distro.DEBIAN: ["p7zip-full", "curl", "wget"],
+            Distro.FEDORA: ["p7zip", "curl", "wget"],
+            Distro.ARCH: ["p7zip", "curl", "wget"],
+        }
+        deps = deps_map.get(distro, ["p7zip", "curl", "wget"])
         install_packages(deps, distro)
         
         src_dir = INSTALL_DIR / "reshade-steam-proton"
@@ -872,7 +814,6 @@ ALL_COMPONENTS: list[Component] = [
     XRLinuxDriverComponent(),
     BreezyDesktopComponent(),
     MonadoComponent(),
-    AITrackComponent(),
     OpenTrackComponent(),
     StardustXRComponent(),
     VRto3DComponent(),
@@ -927,7 +868,7 @@ def clear_screen():
 def print_header():
     print(f"""
 {Colors.CYAN}{Colors.BOLD}╔══════════════════════════════════════════════════════════════╗
-║             VRStack Installer v0.1.0                         ║
+║             VRStack Installer v0.2.0                         ║
 ║         Unified Linux AR/VR Component Manager                ║
 ╚══════════════════════════════════════════════════════════════╝{Colors.RESET}
 """)
@@ -1136,7 +1077,8 @@ def main():
         print(f"\nNext steps:")
         print(f"  1. Connect your AR glasses")
         print(f"  2. Run 'xr_driver_cli -e' to enable the driver")
-        print(f"  3. Check the wiki for per-component setup: https://github.com/wheaney/XRLinuxDriver")
+        print(f"  3. Run 'xreal-launch status' to check system status")
+        print(f"  4. Check the wiki: https://github.com/bl4ckj4ck777/VRStack")
     else:
         print(f"\n{Colors.YELLOW}Installation completed with some errors.{Colors.RESET}")
         print("Check the output above for details.")
