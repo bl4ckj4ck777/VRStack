@@ -514,7 +514,17 @@ class OpenTrackComponent(Component):
             run(f"cmake .. -DCMAKE_INSTALL_PREFIX={Path.home()}/.local", cwd=str(build_dir), shell=True)
             num_cores = get_num_cores()
             run(f"make -j{num_cores}", cwd=str(build_dir), shell=True)
-            run("make install", cwd=str(build_dir), shell=True)
+            
+            # Copy binary directly instead of make install (which can fail)
+            opentrack_bin = build_dir / "opentrack"
+            if opentrack_bin.exists():
+                BIN_DIR.mkdir(parents=True, exist_ok=True)
+                shutil.copy(opentrack_bin, BIN_DIR / "opentrack")
+                (BIN_DIR / "opentrack").chmod(0o755)
+                print("    Installed opentrack binary")
+            else:
+                print(f"[!] Binary not found at {opentrack_bin}")
+                return False
             return True
         except subprocess.CalledProcessError as e:
             print(f"[!] Build failed: {e}")
@@ -949,6 +959,7 @@ def interactive_select(hardware: HardwareInfo) -> list[str]:
                 print("Non-interactive mode detected. Use --minimal, --full, or --components flags.")
                 return selected
         
+        sys.stdout.flush()
         choice = input(f"{Colors.CYAN}Selection (numbers or names, 'all', or Enter for core only): {Colors.RESET}").strip()
     except EOFError:
         print("Non-interactive mode detected. Use --minimal, --full, or --components flags.")
@@ -992,6 +1003,7 @@ def run_installation(components: list[str], distro: Distro, hardware: HardwareIn
                 print("Non-interactive mode: proceeding with installation...")
                 confirm = 'y'
         else:
+            sys.stdout.flush()
             confirm = input(f"{Colors.CYAN}Proceed with installation? [Y/n]: {Colors.RESET}").strip().lower()
     except EOFError:
         confirm = 'y'  # Default to yes in non-interactive mode
